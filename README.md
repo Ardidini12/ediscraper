@@ -23,6 +23,8 @@ npm install
 npm install axios puppeteer-extra puppeteer-extra-plugin-stealth puppeteer-extra-plugin-adblocker fs-extra
 
 3-Run the script:
+node index.js
+
 How it Works
 The script launches a Puppeteer browser instance.
 It navigates to the specified MyHome.ge URL to extract links to individual real estate listings.
