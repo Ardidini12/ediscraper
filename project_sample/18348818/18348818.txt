@@ -1,0 +1,8 @@
+{
+id: 18348818, // Id of listing
+floor: 4/5, // floor / total floors in building
+bedroom: 4, // bedroom quantity
+rooms: 5, // room quantity
+area: 140, // area in square meters
+price: 279000 // price in USD
+}

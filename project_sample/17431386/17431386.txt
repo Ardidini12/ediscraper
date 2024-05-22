@@ -1,0 +1,8 @@
+{
+id: 17431386, // Id of listing
+floor: 11/15, // floor / total floors in building
+bedroom: 3, // bedroom quantity
+rooms: 4, // room quantity
+area: 117, // area in square meters
+price: 360000 // price in USD
+}
