@@ -38,11 +38,11 @@ puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
   try {
     // Go to the main listing page
     await page.goto('https://www.myhome.ge/ka/s/iyideba-bina-Tbilisi/?Keyword=%E1%83%95%E1%83%90%E1%83%99%E1%83%94&AdTypeID=1&PrTypeID=1&cities=1&districts=38&regions=4&Page=1&CardView=2', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForSelector('a[href*="https://www.myhome.ge/ka/pr/"]', { timeout: 60000 });
+    await page.waitForSelector('a[href*="ka/pr/"]', { timeout: 120000 });
 
     // Extract listing links
     const listingLinks = await page.evaluate(() => {
-      const linkElements = document.querySelectorAll('a[href*="https://www.myhome.ge/ka/pr/"]');
+      const linkElements = document.querySelectorAll('a[href*="ka/pr/"]');
       return Array.from(linkElements).map(link => link.href);
     });
 
@@ -62,6 +62,7 @@ puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
       fs.mkdirSync(projectDirectory);
     }
 
+
     // Create folders for each listing ID
     listingIds.forEach(id => {
       const idDirectory = path.join(projectDirectory, id);
@@ -69,6 +70,8 @@ puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
         fs.mkdirSync(idDirectory);
       }
     });
+
+
 
     // Function to download images
     const downloadImage = async (url, filepath) => {
@@ -88,13 +91,27 @@ puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
     // Function to scrape listing details
     const scrapeListingDetails = async (link, idDirectory, id) => {
       const detailPage = await browser.newPage();
-      await detailPage.goto(link, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await detailPage.goto(link, { waitUntil: 'domcontentloaded', timeout: 120000 });
+
+      // // Extract image URLs 
+      // // this is the first code, the selector was changed
+      // const imageUrls = await detailPage.evaluate(() => {
+      //   const imgElements = document.querySelectorAll('.swiper-thumbs img.swiper-lazy');
+      //   return Array.from(imgElements).map(img => img.getAttribute('data-src') || img.src);
+      // });
+
+      // console.log(imageUrls);
 
       // Extract image URLs
       const imageUrls = await detailPage.evaluate(() => {
-        const imgElements = document.querySelectorAll('.swiper-thumbs img.swiper-lazy');
-        return Array.from(imgElements).map(img => img.getAttribute('data-src') || img.src);
+        const imgContainer = document.querySelector('.swiper-thumbs .swiper-wrapper');
+        if (!imgContainer) return [];
+
+        const imgElements = imgContainer.querySelectorAll('img');
+        return Array.from(imgElements).map(img => img.src);
       });
+
+      // console.log('Extracted image URLs:', imageUrls);
 
       // Download and save images
       for (let i = 0; i < imageUrls.length; i++) {
@@ -103,31 +120,82 @@ puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
         await downloadImage(imgUrl, imgFilePath);
       }
 
-      // Extract listing details
-      const listingDetails = await detailPage.evaluate(() => {
-        const floorElement = document.querySelector('.icon.floor + div span:first-child');
-        const bedroomElement = document.querySelector('.icon.bed + div span:first-child');
-        const areaElement = document.querySelector('.icon.space + div span:first-child');
-        const roomsElement = document.querySelector('.icon.space + div span:nth-child(2)');
-        const priceElement = document.querySelector('.convertable[data-price-usd]');
 
-        const floor = floorElement ? floorElement.innerText.trim() : 'N/A';
+      // // Extract listing details
+      // const listingDetails = await detailPage.evaluate(() => {
+      //   const floorElement = document.querySelector('.icon.floor + div span:first-child');
+      //   const bedroomElement = document.querySelector('.icon.bed + div span:first-child');
+      //   const areaElement = document.querySelector('.icon.space + div span:first-child');
+      //   const roomsElement = document.querySelector('.icon.space + div span:nth-child(2)');
+      //   const priceElement = document.querySelector('.convertable[data-price-usd]');
+
+      //   const floor = floorElement ? floorElement.innerText.trim() : 'N/A';
+      //   const bedrooms = bedroomElement ? parseInt(bedroomElement.innerText.trim(), 10) : 'N/A';
+      //   const areaText = areaElement ? areaElement.innerText.trim().split(' ')[0] : 'N/A';
+      //   const roomsText = roomsElement ? roomsElement.innerText.trim().split(' ')[0] : 'N/A';
+      //   const price = priceElement ? parseInt(priceElement.getAttribute('data-price-usd').replace(',', ''), 10) : 'N/A';
+
+      //   const area = areaText !== 'N/A' ? parseFloat(areaText) : 'N/A';
+      //   const rooms = roomsText !== 'N/A' ? parseInt(roomsText, 10) : 'N/A';
+
+      //   return {
+      //     floor,
+      //     bedrooms,
+      //     rooms,
+      //     area,
+      //     price
+      //   };
+      // });
+
+
+      const listingDetails = await detailPage.evaluate(async () => {
+        // Click on the dollar sign to change the currency
+        const currencySwitcher = document.querySelector('#currency-switcher button');
+        if (currencySwitcher) {
+            currencySwitcher.click();
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Wait for the currency to switch
+        }
+    
+        let floorText = '';
+    
+        const floorElement = document.querySelector('div.flex.items-center.gap-3:nth-child(4) span:nth-child(2)');
+        // Check if the floor element is missing and search for it based on '/' sign
+        if (!floorElement) {
+            const possibleFloorElements = document.querySelectorAll('div.flex.items-center.gap-3 span:nth-child(2)');
+            for (const element of possibleFloorElements) {
+                if (element.textContent.includes('/')) {
+                    floorText = element.textContent;
+                    break;
+                }
+            }
+        } else {
+            floorText = floorElement.textContent;
+        }
+    
+        const bedroomElement = document.querySelector('div.flex.items-center.gap-3:nth-child(3) span:nth-child(2)');
+        const areaElement = document.querySelector('div.flex.items-center.gap-3:nth-child(1) span:nth-child(2)');
+        const roomsElement = document.querySelector('div.flex.items-center.gap-3:nth-child(2) span:nth-child(2)');
+        const priceElement = document.querySelector('div.rounded-2xl div.flex.text-2xl span');
+    
+        const floor = floorText.trim() !== '' ? floorText.trim() : 'N/A';
         const bedrooms = bedroomElement ? parseInt(bedroomElement.innerText.trim(), 10) : 'N/A';
         const areaText = areaElement ? areaElement.innerText.trim().split(' ')[0] : 'N/A';
-        const roomsText = roomsElement ? roomsElement.innerText.trim().split(' ')[0] : 'N/A';
-        const price = priceElement ? parseInt(priceElement.getAttribute('data-price-usd').replace(',', ''), 10) : 'N/A';
-
+        const roomsText = roomsElement ? roomsElement.innerText.trim() : 'N/A';
+        const price = priceElement ? priceElement.innerText.trim() : 'N/A';
+    
         const area = areaText !== 'N/A' ? parseFloat(areaText) : 'N/A';
         const rooms = roomsText !== 'N/A' ? parseInt(roomsText, 10) : 'N/A';
-
+    
         return {
-          floor,
-          bedrooms,
-          rooms,
-          area,
-          price
+            floor,
+            bedrooms,
+            rooms,
+            area,
+            price,
         };
-      });
+    });
+    
+
 
       // Write listing details to a text file
       const detailsFilePath = path.join(idDirectory, `${id}.txt`);
